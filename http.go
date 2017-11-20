@@ -27,7 +27,7 @@ type NatsHttp struct {
 func New(config *Config) *NatsHttp {
 	return &NatsHttp{
 		config:      config,
-		packRequest: packRequestDefault,
+		packRequest: DefaultPackRequest,
 	}
 }
 
@@ -61,7 +61,7 @@ func (h *NatsHttp) getLoginData(tokenString string) (*string, *string, error) {
 	return &userId, &deviceId, nil
 }
 
-func packRequestDefault(userId string, deviceId string, packetFormat string, request *http.Request) ([]byte, error) {
+func DefaultPackRequest(userId string, deviceId string, packetFormat string, request *http.Request) ([]byte, error) {
 
 	var err error
 	var body []byte
