@@ -1,6 +1,7 @@
 package js
 
 type Request struct {
+	InputTime  int64  `json:"inputTime"`
 	Method     string `json:"method"`
 	Host       string `json:"host"`
 	RemoteAddr string `json:"remoteAddr"`

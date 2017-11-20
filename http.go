@@ -74,6 +74,7 @@ func DefaultPackRequest(userId string, deviceId string, packetFormat string, req
 	switch packetFormat {
 	case "json":
 		requestPacket := js.Request{
+			InputTime:  time.Now().UnixNano() / 1000000,
 			UserId:     userId,
 			DeviceId:   deviceId,
 			Method:     request.Method,
@@ -87,6 +88,7 @@ func DefaultPackRequest(userId string, deviceId string, packetFormat string, req
 
 	case "protobuf":
 		requestPacket := pb.Request{
+			InputTime:  time.Now().UnixNano() / 1000000,
 			UserId:     userId,
 			DeviceId:   deviceId,
 			Method:     request.Method,
@@ -167,6 +169,9 @@ func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Reque
 
 	subject, exit := h.muxRequest(request)
 	if exit {
+		http.Error(writer,
+			http.StatusText(http.StatusNotFound),
+			http.StatusNotFound)
 		return
 	}
 
