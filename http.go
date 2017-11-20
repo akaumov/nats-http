@@ -27,10 +27,11 @@ func New(config *Config) *NatsHttp {
 
 func (h *NatsHttp) packRequest(request *http.Request) ([]byte, error) {
 
+	var err error
 	var body []byte
 
 	if request.Body != nil {
-		body, err := ioutil.ReadAll(request.Body)
+		body, err = ioutil.ReadAll(request.Body)
 		if err != nil {
 			return nil, err
 		}
