@@ -1,0 +1,17 @@
+syntax = "proto3";
+package pb;
+
+message Request {
+    string userId = 1;
+    string deviceId = 2;
+    string method = 3;
+    string host = 4;
+    string remoteAddr = 5;
+    string requestURI = 6;
+    bytes body = 7;
+}
+
+message Response {
+    int64 status = 1;
+    bytes body = 2;
+}

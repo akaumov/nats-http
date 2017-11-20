@@ -2,14 +2,38 @@
 
 
 [[projects]]
+  name = "github.com/SermoDigital/jose"
+  packages = [".","crypto","jws","jwt"]
+  revision = "f6df55f235c24f236d11dbcf665249a59ac2021f"
+  version = "1.1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/akaumov/natspool"
+  packages = ["."]
+  revision = "39ed54ddc7277ccd4dce621cf70101d6d710c8c8"
+
+[[projects]]
   branch = "master"
   name = "github.com/golang/protobuf"
   packages = ["proto"]
   revision = "1e59b77b52bf8e4b449a57e6f79f21226d571845"
 
+[[projects]]
+  name = "github.com/nats-io/go-nats"
+  packages = [".","encoders/builtin","util"]
+  revision = "29f9728a183bf3fa7e809e14edac00b33be72088"
+  version = "v1.3.0"
+
+[[projects]]
+  name = "github.com/nats-io/nuid"
+  packages = ["."]
+  revision = "289cccf02c178dc782430d534e3c1f5b72af807f"
+  version = "v1.0.0"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "052080cacd8a2541c621eeb9edb3026974ee227773b8da8a8f6c34e5c008f7cb"
+  inputs-digest = "31120618a8c2ffbb2502974028905a9a7dcae4583a351358931a0800d9970af5"
   solver-name = "gps-cdcl"
   solver-version = 1

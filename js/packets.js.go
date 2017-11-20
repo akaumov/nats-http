@@ -6,6 +6,8 @@ type Request struct {
 	RemoteAddr string `json:"remoteAddr"`
 	RequestURI string `json:"requestURI"`
 	Body       []byte `json:"body"`
+	UserId     string `json:"userId"`
+	DeviceId   string `json:"deviceId"`
 }
 
 type Response struct {

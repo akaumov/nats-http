@@ -3,6 +3,8 @@ package nats_http
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/SermoDigital/jose/crypto"
+	"github.com/SermoDigital/jose/jws"
 	"github.com/akaumov/nats-http/js"
 	"github.com/akaumov/nats-http/pb"
 	"github.com/akaumov/natspool"
@@ -25,7 +27,30 @@ func New(config *Config) *NatsHttp {
 	}
 }
 
-func (h *NatsHttp) packRequest(request *http.Request) ([]byte, error) {
+func (h *NatsHttp) getLoginData(tokenString string) (*string, *string, error) {
+
+	if tokenString == "" {
+		return nil, nil, fmt.Errorf("empty token")
+	}
+
+	newToken, err := jws.ParseJWT([]byte(tokenString))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = newToken.Validate([]byte(h.config.JwtSecret), crypto.SigningMethodHS256)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	claims := newToken.Claims()
+	userId := claims.Get("userId").(string)
+	deviceId := claims.Get("deviceId").(string)
+
+	return &userId, &deviceId, nil
+}
+
+func (h *NatsHttp) packRequest(userId string, deviceId string, request *http.Request) ([]byte, error) {
 
 	var err error
 	var body []byte
@@ -45,6 +70,8 @@ func (h *NatsHttp) packRequest(request *http.Request) ([]byte, error) {
 	switch h.config.PacketFormat {
 	case "json":
 		requestPacket := js.Request{
+			UserId:     userId,
+			DeviceId:   deviceId,
 			Method:     request.Method,
 			Host:       request.Host,
 			RemoteAddr: request.RemoteAddr,
@@ -56,6 +83,8 @@ func (h *NatsHttp) packRequest(request *http.Request) ([]byte, error) {
 
 	case "protobuf":
 		requestPacket := pb.Request{
+			UserId:     userId,
+			DeviceId:   deviceId,
 			Method:     request.Method,
 			Host:       request.Host,
 			RemoteAddr: request.RemoteAddr,
@@ -109,7 +138,17 @@ func (h *NatsHttp) handleResponse(responseMsg *nats.Msg, writer http.ResponseWri
 
 func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Request) {
 
-	requestPacketData, err := h.packRequest(request)
+	token := request.Header.Get("X-Auth-Token")
+
+	userId, deviceId, err := h.getLoginData(token)
+	if err != nil {
+		http.Error(writer,
+			http.StatusText(http.StatusUnauthorized),
+			http.StatusUnauthorized)
+		return
+	}
+
+	requestPacketData, err := h.packRequest(*userId, *deviceId, request)
 	if err != nil {
 		http.Error(writer,
 			http.StatusText(http.StatusInternalServerError),
@@ -130,6 +169,13 @@ func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Reque
 
 	responseMsg, err := natsClient.Request(h.config.NatsOutputSubject, requestPacketData, timeout)
 	if err != nil {
+		if err == nats.ErrTimeout {
+			http.Error(writer,
+				http.StatusText(http.StatusGatewayTimeout),
+				http.StatusGatewayTimeout)
+			return
+		}
+
 		http.Error(writer,
 			http.StatusText(http.StatusInternalServerError),
 			http.StatusInternalServerError)
