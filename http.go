@@ -16,14 +16,25 @@ import (
 	"time"
 )
 
+type PackRequestFunc func(userId string, deviceId string, packetFormat string, request *http.Request) ([]byte, error)
+
 type NatsHttp struct {
-	config   *Config
-	natsPool *natspool.Pool
+	config      *Config
+	natsPool    *natspool.Pool
+	packRequest PackRequestFunc
 }
 
 func New(config *Config) *NatsHttp {
 	return &NatsHttp{
-		config: config,
+		config:      config,
+		packRequest: packRequestDefault,
+	}
+}
+
+func NewCustom(config *Config, packRequestHook PackRequestFunc) *NatsHttp {
+	return &NatsHttp{
+		config:      config,
+		packRequest: packRequestHook,
 	}
 }
 
@@ -50,7 +61,7 @@ func (h *NatsHttp) getLoginData(tokenString string) (*string, *string, error) {
 	return &userId, &deviceId, nil
 }
 
-func (h *NatsHttp) packRequest(userId string, deviceId string, request *http.Request) ([]byte, error) {
+func packRequestDefault(userId string, deviceId string, packetFormat string, request *http.Request) ([]byte, error) {
 
 	var err error
 	var body []byte
@@ -67,7 +78,7 @@ func (h *NatsHttp) packRequest(userId string, deviceId string, request *http.Req
 		}
 	}
 
-	switch h.config.PacketFormat {
+	switch packetFormat {
 	case "json":
 		requestPacket := js.Request{
 			UserId:     userId,
@@ -99,8 +110,8 @@ func (h *NatsHttp) packRequest(userId string, deviceId string, request *http.Req
 
 	}
 
-	log.Panicf("Unsuported format: %v", h.config.PacketFormat)
-	return nil, fmt.Errorf("unsuported format: %v", h.config.PacketFormat)
+	log.Panicf("Unsuported format: %v", packetFormat)
+	return nil, fmt.Errorf("unsuported format: %v", packetFormat)
 }
 
 func (h *NatsHttp) handleResponse(responseMsg *nats.Msg, writer http.ResponseWriter) error {
@@ -148,7 +159,7 @@ func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	requestPacketData, err := h.packRequest(*userId, *deviceId, request)
+	requestPacketData, err := h.packRequest(*userId, *deviceId, h.config.PacketFormat, request)
 	if err != nil {
 		http.Error(writer,
 			http.StatusText(http.StatusInternalServerError),
