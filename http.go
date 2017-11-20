@@ -1,9 +1,13 @@
 package nats_http
 
 import (
+	"encoding/json"
+	"fmt"
+	"github.com/akaumov/nats-http/js"
 	"github.com/akaumov/nats-http/pb"
 	"github.com/akaumov/natspool"
 	"github.com/golang/protobuf/proto"
+	"github.com/nats-io/go-nats"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -21,16 +25,14 @@ func New(config *Config) *NatsHttp {
 	}
 }
 
-func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Request) {
+func (h *NatsHttp) packRequest(request *http.Request) ([]byte, error) {
 
-	var err error
 	var body []byte
 
 	if request.Body != nil {
-		body, err = ioutil.ReadAll(request.Body)
+		body, err := ioutil.ReadAll(request.Body)
 		if err != nil {
-			http.Error(writer, "ServerError", 500)
-			return
+			return nil, err
 		}
 		request.Body.Close()
 
@@ -39,16 +41,74 @@ func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Reque
 		}
 	}
 
-	requestPacket := pb.Request{
-		Method:     request.Method,
-		Host:       request.Host,
-		RemoteAddr: request.RemoteAddr,
-		RequestURI: request.RequestURI,
-		Body:       body,
+	switch h.config.PacketFormat {
+	case "json":
+		requestPacket := js.Request{
+			Method:     request.Method,
+			Host:       request.Host,
+			RemoteAddr: request.RemoteAddr,
+			RequestURI: request.RequestURI,
+			Body:       body,
+		}
+		requestPacketData, err := json.Marshal(&requestPacket)
+		return requestPacketData, err
+
+	case "protobuf":
+		requestPacket := pb.Request{
+			Method:     request.Method,
+			Host:       request.Host,
+			RemoteAddr: request.RemoteAddr,
+			RequestURI: request.RequestURI,
+			Body:       body,
+		}
+
+		requestPacketData, err := proto.Marshal(&requestPacket)
+		return requestPacketData, err
+
+	default:
+
 	}
 
-	requestPacketData, err := proto.Marshal(&requestPacket)
+	log.Panicf("Unsuported format: %v", h.config.PacketFormat)
+	return nil, fmt.Errorf("unsuported format: %v", h.config.PacketFormat)
+}
 
+func (h *NatsHttp) handleResponse(responseMsg *nats.Msg, writer http.ResponseWriter) error {
+
+	switch h.config.PacketFormat {
+	case "json":
+		var response js.Response
+
+		err := json.Unmarshal(responseMsg.Data, &response)
+		if err != nil {
+			return err
+		}
+
+		writer.WriteHeader(int(response.Status))
+		if response.Body != nil && len(response.Body) > 0 {
+			writer.Write(response.Body)
+		}
+
+	case "protobuf":
+		var response pb.Response
+
+		err := proto.Unmarshal(responseMsg.Data, &response)
+		if err != nil {
+			return err
+		}
+
+		writer.WriteHeader(int(response.Status))
+		if response.Body != nil && len(response.Body) > 0 {
+			writer.Write(response.Body)
+		}
+	}
+
+	return nil
+}
+
+func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Request) {
+
+	requestPacketData, err := h.packRequest(request)
 	if err != nil {
 		http.Error(writer,
 			http.StatusText(http.StatusInternalServerError),
@@ -66,8 +126,8 @@ func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Reque
 	h.natsPool.Put(natsClient)
 
 	timeout := time.Duration(h.config.Timeout) * time.Millisecond
+
 	responseMsg, err := natsClient.Request(h.config.NatsOutputSubject, requestPacketData, timeout)
-
 	if err != nil {
 		http.Error(writer,
 			http.StatusText(http.StatusInternalServerError),
@@ -75,19 +135,12 @@ func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
-	var response pb.Response
-	err = proto.Unmarshal(responseMsg.Data, &response)
-
+	h.handleResponse(responseMsg, writer)
 	if err != nil {
 		http.Error(writer,
 			http.StatusText(http.StatusInternalServerError),
 			http.StatusInternalServerError)
 		return
-	}
-
-	writer.WriteHeader(int(response.Status))
-	if response.Body != nil && len(response.Body) > 0 {
-		writer.Write(response.Body)
 	}
 }
 
@@ -95,8 +148,7 @@ func (h *NatsHttp) Start() {
 
 	natsPool, err := natspool.New(h.config.NatsAddress, h.config.NatsPoolSize)
 	if err != nil {
-		log.Fatalf("can't connect to nats: %v", err)
-		return
+		log.Panicf("can't connect to nats: %v", err)
 	}
 
 	h.natsPool = natsPool
