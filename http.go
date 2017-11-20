@@ -16,49 +16,42 @@ import (
 	"time"
 )
 
+type MuxRequestFunc func(request *http.Request) (string, bool)
 type PackRequestFunc func(userId string, deviceId string, packetFormat string, request *http.Request) ([]byte, error)
 
 type NatsHttp struct {
-	config      *Config
-	natsPool    *natspool.Pool
+	config   *Config
+	natsPool *natspool.Pool
+
+	muxRequest  MuxRequestFunc
 	packRequest PackRequestFunc
 }
 
 func New(config *Config) *NatsHttp {
 	return &NatsHttp{
 		config:      config,
+		muxRequest:  DefaultMuxRequest,
 		packRequest: DefaultPackRequest,
 	}
 }
 
-func NewCustom(config *Config, packRequestHook PackRequestFunc) *NatsHttp {
+func NewCustom(config *Config, muxRequest MuxRequestFunc, packRequestHook PackRequestFunc) *NatsHttp {
+
+	if muxRequest == nil {
+		muxRequest = DefaultMuxRequest
+	}
+
+	if packRequestHook == nil {
+		packRequestHook = DefaultPackRequest
+	}
 	return &NatsHttp{
 		config:      config,
 		packRequest: packRequestHook,
 	}
 }
 
-func (h *NatsHttp) getLoginData(tokenString string) (*string, *string, error) {
-
-	if tokenString == "" {
-		return nil, nil, fmt.Errorf("empty token")
-	}
-
-	newToken, err := jws.ParseJWT([]byte(tokenString))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	err = newToken.Validate([]byte(h.config.JwtSecret), crypto.SigningMethodHS256)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	claims := newToken.Claims()
-	userId := claims.Get("userId").(string)
-	deviceId := claims.Get("deviceId").(string)
-
-	return &userId, &deviceId, nil
+func DefaultMuxRequest(request *http.Request) (string, bool) {
+	return "nats-http", false
 }
 
 func DefaultPackRequest(userId string, deviceId string, packetFormat string, request *http.Request) ([]byte, error) {
@@ -114,6 +107,29 @@ func DefaultPackRequest(userId string, deviceId string, packetFormat string, req
 	return nil, fmt.Errorf("unsuported format: %v", packetFormat)
 }
 
+func (h *NatsHttp) getLoginData(tokenString string) (*string, *string, error) {
+
+	if tokenString == "" {
+		return nil, nil, fmt.Errorf("empty token")
+	}
+
+	newToken, err := jws.ParseJWT([]byte(tokenString))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = newToken.Validate([]byte(h.config.JwtSecret), crypto.SigningMethodHS256)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	claims := newToken.Claims()
+	userId := claims.Get("userId").(string)
+	deviceId := claims.Get("deviceId").(string)
+
+	return &userId, &deviceId, nil
+}
+
 func (h *NatsHttp) handleResponse(responseMsg *nats.Msg, writer http.ResponseWriter) error {
 
 	switch h.config.PacketFormat {
@@ -149,6 +165,11 @@ func (h *NatsHttp) handleResponse(responseMsg *nats.Msg, writer http.ResponseWri
 
 func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Request) {
 
+	subject, exit := h.muxRequest(request)
+	if exit {
+		return
+	}
+
 	token := request.Header.Get("X-Auth-Token")
 
 	userId, deviceId, err := h.getLoginData(token)
@@ -178,7 +199,7 @@ func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Reque
 
 	timeout := time.Duration(h.config.Timeout) * time.Millisecond
 
-	responseMsg, err := natsClient.Request(h.config.NatsOutputSubject, requestPacketData, timeout)
+	responseMsg, err := natsClient.Request(subject, requestPacketData, timeout)
 	if err != nil {
 		if err == nats.ErrTimeout {
 			http.Error(writer,

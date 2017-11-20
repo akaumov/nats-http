@@ -7,7 +7,6 @@ type Config struct {
 	Timeout         int64  `json:"timeout"`
 	JwtSecret       string `json:"jwtSecret"`
 
-	NatsAddress       string `json:"natsAddress"`
-	NatsPoolSize      int    `json:"natsPoolSize"`
-	NatsOutputSubject string `json:"natsOutputSubject"`
+	NatsAddress  string `json:"natsAddress"`
+	NatsPoolSize int    `json:"natsPoolSize"`
 }
