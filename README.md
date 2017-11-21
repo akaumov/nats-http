@@ -1,5 +1,5 @@
 # nats-http
-HTTP gateway for [nats.io](http://nats.io/).
+HTTP gateway for [nats.io](http://nats.io/). Supports login by JWT and json/protobuf message formats.
 
 ## Installation
 
