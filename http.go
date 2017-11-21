@@ -29,16 +29,11 @@ type NatsHttp struct {
 	muxRequest  MuxRequestFunc
 	packRequest PackRequestFunc
 
-	stopSignal chan bool
 	httpServer *http.Server
 }
 
 func New(config *Config) *NatsHttp {
-	return &NatsHttp{
-		config:      config,
-		muxRequest:  DefaultMuxRequest,
-		packRequest: DefaultPackRequest,
-	}
+	return NewCustom(config, nil, nil)
 }
 
 func NewCustom(config *Config, muxRequest MuxRequestFunc, packRequestHook PackRequestFunc) *NatsHttp {
@@ -50,8 +45,11 @@ func NewCustom(config *Config, muxRequest MuxRequestFunc, packRequestHook PackRe
 	if packRequestHook == nil {
 		packRequestHook = DefaultPackRequest
 	}
+
 	return &NatsHttp{
-		config:      config,
+		config: config,
+
+		muxRequest:  muxRequest,
 		packRequest: packRequestHook,
 	}
 }
