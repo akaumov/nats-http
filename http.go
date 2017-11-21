@@ -13,6 +13,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
@@ -25,6 +28,9 @@ type NatsHttp struct {
 
 	muxRequest  MuxRequestFunc
 	packRequest PackRequestFunc
+
+	stopSignal chan bool
+	httpServer *http.Server
 }
 
 func New(config *Config) *NatsHttp {
@@ -228,7 +234,31 @@ func (h *NatsHttp) handleRequest(writer http.ResponseWriter, request *http.Reque
 	}
 }
 
+func (h *NatsHttp) startHttpServer() {
+
+	http.HandleFunc(h.config.UrlPattern, h.handleRequest)
+
+	srv := http.Server{
+		Addr: h.config.ListenInterface,
+	}
+
+	h.httpServer = &srv
+
+	log.Println("Start nats-http on: " + h.config.ListenInterface)
+	log.Fatal(srv.ListenAndServe())
+}
+
+func getOsSignalWatcher() chan os.Signal {
+
+	stopChannel := make(chan os.Signal)
+	signal.Notify(stopChannel, os.Interrupt, syscall.SIGTERM, syscall.SIGKILL)
+
+	return stopChannel
+}
+
 func (h *NatsHttp) Start() {
+
+	stopSignal := getOsSignalWatcher()
 
 	natsPool, err := natspool.New(h.config.NatsAddress, h.config.NatsPoolSize)
 	if err != nil {
@@ -236,8 +266,23 @@ func (h *NatsHttp) Start() {
 	}
 
 	h.natsPool = natsPool
+	defer func() { natsPool.Empty() }()
 
-	http.HandleFunc(h.config.UrlPattern, h.handleRequest)
-	log.Println("Start nats-http on: " + h.config.ListenInterface)
-	log.Fatal(http.ListenAndServe(h.config.ListenInterface, nil))
+	go func() {
+		<-stopSignal
+		h.Stop()
+	}()
+
+	h.startHttpServer()
+}
+
+func (h *NatsHttp) Stop() {
+
+	if h.httpServer != nil {
+		h.httpServer.Shutdown(nil)
+		log.Println("http: shutdown")
+	}
+
+	h.natsPool.Empty()
+	log.Println("natspool: empty")
 }
