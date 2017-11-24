@@ -9,9 +9,9 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/akaumov/natspool"
+  name = "github.com/akaumov/nats-pool"
   packages = ["."]
-  revision = "39ed54ddc7277ccd4dce621cf70101d6d710c8c8"
+  revision = "e18ccdd477132e2f21c6148b60935f722acd5072"
 
 [[projects]]
   branch = "master"
@@ -34,6 +34,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "31120618a8c2ffbb2502974028905a9a7dcae4583a351358931a0800d9970af5"
+  inputs-digest = "d67a092e761245fbd3135d5e55f3a2417333646f5169b37a96278833d1f9bc52"
   solver-name = "gps-cdcl"
   solver-version = 1

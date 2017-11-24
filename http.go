@@ -7,7 +7,7 @@ import (
 	"github.com/SermoDigital/jose/jws"
 	"github.com/akaumov/nats-http/js"
 	"github.com/akaumov/nats-http/pb"
-	"github.com/akaumov/natspool"
+	"github.com/akaumov/nats-pool"
 	"github.com/golang/protobuf/proto"
 	"github.com/nats-io/go-nats"
 	"io/ioutil"
@@ -24,7 +24,7 @@ type PackRequestFunc func(userId string, deviceId string, packetFormat string, r
 
 type NatsHttp struct {
 	config   *Config
-	natsPool *natspool.Pool
+	natsPool *nats_pool.Pool
 
 	muxRequest  MuxRequestFunc
 	packRequest PackRequestFunc
@@ -258,7 +258,7 @@ func (h *NatsHttp) Start() {
 
 	stopSignal := getOsSignalWatcher()
 
-	natsPool, err := natspool.New(h.config.NatsAddress, h.config.NatsPoolSize)
+	natsPool, err := nats_pool.New(h.config.NatsAddress, h.config.NatsPoolSize)
 	if err != nil {
 		log.Panicf("can't connect to nats: %v", err)
 	}
